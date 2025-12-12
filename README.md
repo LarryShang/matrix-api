@@ -56,7 +56,7 @@ Running the Server
 ```Bash
 
 # Clone the repository
-git clone [https://github.com/](https://github.com/)[YourUsername]/matrix-api.git
+git clone https://github.com/LarryShang/matrix-api.git
 cd matrix-api
 
 # Run the server
