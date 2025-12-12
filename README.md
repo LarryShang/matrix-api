@@ -1,87 +1,146 @@
-# Matrix Operations Web Service
+# Matrix Operations API
 
-This is a web service written in Go that accepts an uploaded CSV file representing a square matrix and performs several mathematical and formatting operations on it.
+A high-performance Go microservice for processing large matrix data via HTTP file uploads. This project demonstrates production-grade Go patterns, specifically focusing on handling large datasets efficiently using stream processing and concurrency.
 
-The service is designed to be memory-efficient, processing large files as a stream to avoid loading them entirely into memory.
+![Go](https://img.shields.io/badge/go-1.21-blue.svg?style=for-the-badge&logo=go&logoColor=white)
+![Architecture](https://img.shields.io/badge/architecture-clean-green.svg?style=for-the-badge)
+![Status](https://img.shields.io/badge/build-passing-brightgreen.svg?style=for-the-badge)
 
----
+## 📖 Overview
 
-## Project Architecture
+This service accepts `.csv` formatted matrices and performs mathematical operations (Sum, Multiply, Invert, Flatten).
 
-The project follows a layered architecture to ensure a clean separation of concerns.
-
-* **`main.go`**: The entry point of the application. It is responsible for:
-    * **Dependency Injection**: Instantiating the service, domain, and handler layers.
-    * **Routing**: Mapping URL endpoints to their corresponding handler logic.
-
-* **`handler` Package**: This layer is responsible for all HTTP-related tasks.
-    * It parses incoming HTTP requests and extracts the uploaded file.
-    * It calls the appropriate service method to perform the business logic.
-    * It formats the result from the service into an HTTP response.
-    * It uses a higher-order function (`FileHandler`) to eliminate repetitive boilerplate code for file handling and error checking.
-
-* **`service` Package**: This is the core business logic layer.
-    * It contains the functions that perform matrix operations (`Sum`, `Multiply`, `Flatten`, etc.).
-    * It uses a generic streaming function (`processMatrixStream`) to read and validate the CSV file row by row, ensuring the application can handle very large files without crashing.
-    * This layer knows nothing about HTTP; its methods could be reused in a command-line tool or another application.
-
-* **`domain` Package**: A shared package that holds common data types and error definitions.
-    * Its primary purpose is to break potential cyclic dependencies. For example, both `handler` and `service` need access to the same custom error types, and this package provides a central location for them.
+### Key Features
+* **Stream Processing:** Uses `io.Reader` to process files line-by-line, ensuring low memory footprint (`O(1)` space complexity for Sum/Multiply).
+* **Concurrency:** Implements the **Producer-Consumer** pattern to decouple I/O (reading CSV) from CPU (BigInt calculations).
+* **Clean Architecture:** Strictly separates `Domain`, `Service`, and `Handler` layers, utilizing interfaces for dependency injection.
+* **Robustness:** Handles integer overflow using `math/big` and validates matrix structure (squareness) strictly.
 
 ---
 
-## API Endpoints
+## 🏗️ Architecture
 
-The service exposes the following `POST` endpoints. Each endpoint expects a `multipart/form-data` request with a file field named `file`.
+The project follows the **Standard Go Layout**:
 
-* `/echo`
-  Returns the uploaded matrix as a string, provided it passes validation. **Note**: This operation loads the entire matrix into memory.
-
-* `/invert`
-  Returns the matrix with its rows and columns transposed. **Note**: This operation must load the entire matrix into memory.
-
-* `/flatten`
-  Returns the matrix as a single line of comma-separated values.
-
-* `/sum`
-  Returns the sum of all integers in the matrix.
-
-* `/multiply`
-  Returns the product of all integers in the matrix.
-
----
-
-## How to Use
-
-### 1. Run the Server
-Navigate to the project's root directory and run:
-```bash
-go run .
+```text
+matrix-api/
+├── cmd/
+│   └── server/
+│       └── main.go           # Application entry point
+├── internal/
+│   ├── domain/
+│   │   └── errors.go         # Domain errors and constants
+│   ├── handler/
+│   │   └── matrix_handler.go # HTTP layer (Parsing multipart forms)
+│   └── service/
+│       ├── service.go        # Interface definition
+│       ├── serial.go         # Serial implementation (Callback pattern)
+│       └── concurrent.go     # Concurrent implementation (Producer-Consumer)
+├── go.mod
+└── README.md
 ```
-The server will start on `localhost:8080`.
+The Producer-Consumer Pattern
+For operations like Sum and Multiply, the service uses a concurrent pipeline to maximize throughput:
 
-### 2. Send Requests
-Use a tool like `curl` to send a CSV file to an endpoint. Assume you have a file named `matrix.csv` in current directory with the content `1,2,3\n4,5,6\n7,8,9`.
+Producer (Goroutine): Reads the CSV file, parses strings to integers, and pushes them to a buffered channel. It handles I/O latency.
 
-```bash
-# Echo the matrix
-curl -F 'file=@./matrix.csv' "localhost:8080/echo"
+Consumer (Main Routine): Reads integers from the channel and updates the BigInt result. It handles CPU processing.
 
-# Invert the matrix
-curl -F 'file=@./matrix.csv' "localhost:8080/invert"
+🚀 Getting Started
+Prerequisites
+Go 1.21+
 
-# Flatten the matrix
-curl -F 'file=@./matrix.csv' "localhost:8080/flatten"
+Curl (for testing endpoints)
 
-# Get the sum
-curl -F 'file=@./matrix.csv' "localhost:8080/sum"
+Running the Server
+```Bash
 
-# Get the product
-curl -F 'file=@./matrix.csv' "localhost:8080/multiply"
+# Clone the repository
+git clone [https://github.com/](https://github.com/)[YourUsername]/matrix-api.git
+cd matrix-api
+
+# Run the server
+go run cmd/server/main.go
 ```
+Server will start on http://localhost:8080
 
-### 3. Run Tests
-To run the full suite of unit tests for all packages, use the following command:
-```bash
-go test ./...
+## ⚡ API Reference
+All endpoints expect a `POST` request with `multipart/form-data` containing a file field named `file`.
+
+### 1. Echo Matrix
+   Returns the matrix in string format.
+
+Endpoint: `/echo`
+
+Command:
+
+```Bash
+
+curl -F "file=@./matrix.csv" localhost:8080/echo
 ```
+### 2. Invert Matrix
+   Returns the matrix with columns and rows transposed.
+
+Endpoint: `/invert`
+
+Command:
+
+```Bash
+
+curl -F "file=@./matrix.csv" localhost:8080/invert
+```
+### 3. Flatten Matrix
+   Returns the matrix as a single comma-separated line.
+
+Endpoint: `/flatten`
+
+Command:
+
+```Bash
+
+curl -F "file=@./matrix.csv" localhost:8080/flatten
+```
+### 4. Sum
+   Returns the sum of all integers in the matrix.
+
+Endpoint: `/sum`
+
+Command:
+
+```Bash
+
+curl -F "file=@./matrix.csv" localhost:8080/sum
+```
+### 5. Multiply
+   Returns the product of all integers in the matrix.
+
+Endpoint: `/multiply`
+
+Command:
+
+```Bash
+
+curl -F "file=@./matrix.csv" localhost:8080/multiply
+```
+**Note for Windows Users:** If using PowerShell, use curl.exe instead of curl to avoid alias conflicts with Invoke-WebRequest.
+
+## 🧪 Running Tests
+The project includes a comprehensive test suite covering both Unit (Service) and Integration (Handler) layers. The service tests verify both Serial and Concurrent implementations against the same dataset.
+
+```Bash
+
+# Run all tests with verbose output
+go test ./... -v
+```
+## 💡 Design Decisions
+### Q: Why use `math/big`?
+
+Matrix multiplication grows exponentially. Standard int64 overflows very quickly. math/big ensures correctness even for large datasets.
+
+### Q: Why separate `Serial` and `Concurrent` services?
+
+This allows for easy A/B testing and benchmarking. For small files, the overhead of spinning up goroutines (context switching) might make the Serial version faster. The Concurrent version shines with large files where I/O blocking is the bottleneck.
+
+### Q: How is the `Multiply` endpoint optimized?
+
+It implements a Lazy Zero Check. If a `0` is encountered, the multiplication logic stops (result is guaranteed to be 0), but the stream continues draining to ensure the matrix is valid (square and properly formatted) before returning.
